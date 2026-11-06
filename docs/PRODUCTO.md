@@ -10,6 +10,9 @@ Aplicación móvil para que una familia controle gastos e ingresos mensuales y a
 - Un único usuario local, sin cuenta ni autenticación. Los ámbitos Personal y Familiar son organizativos y sus saldos se calculan por separado.
 - La base local no está cifrada. No hay permisos entre integrantes ni sincronización; las reglas multiusuario siguientes son objetivos del futuro backend.
 - Los registros y las bases personales nunca se incluyen en el repositorio. Las pruebas usan datos ficticios en directorios temporales.
+- Presupuestos mensuales por categoría de egreso y ámbito Personal/Familiar, sin duplicados. Se crean, editan y eliminan; se pueden consultar meses anteriores. Solo computan egresos y muestran avisos desde 80%, al alcanzar 100% y al superarlo.
+- Los límites antiguos sin mes se migran una sola vez al mes actual y ámbito Familiar, conservando todos los movimientos. Los presupuestos locales persisten y los de demo permanecen en memoria.
+- Catálogo de categorías predeterminadas y personalizadas por tipo y ámbito. Las personalizadas se renombran; las categorías se desactivan sin borrar historial. Los nombres históricos se conservan mediante referencias estables y las categorías con presupuestos vinculados están protegidas frente a renombrado/desactivación. Sin autenticación real.
 
 ## Usuarios y privacidad
 - Cada persona tiene su propia cuenta.

@@ -12,6 +12,7 @@ from kivy.uix.spinner import Spinner
 from kivy.core.window import Window
 from kivy.uix.popup import Popup
 from nexo.app import NexoFinanzas
+from nexo.design import theme, ThemeManager
 from nexo.widgets import Card
 from nexo.data import DemoStore, clp, INCOME_CATEGORIES, EXPENSE_CATEGORIES, movement_order
 
@@ -73,6 +74,7 @@ class VerificationApp(NexoFinanzas):
         try:
             page = next(self.pages, None)
             if page is None:
+                self.check_appearance()
                 self.check_local_mode()
                 print("OK: pantallas demo/local, guardado, edición, borrado y cambio de modo.")
                 self.stop()
@@ -136,6 +138,25 @@ class VerificationApp(NexoFinanzas):
         recent_cards = [w for w in reversed(self.body.children) if isinstance(w, Card)]
         assert recent_cards[1].children[-1].text.startswith("Prueba Egreso")
 
+    def check_appearance(self):
+        for page in ("Bienvenida", "Acceso", "Inicio", "Personal", "Registrar", "Historial", "Presupuestos"):
+            self.show(page)
+            assert not any(isinstance(w, Spinner) and "Claro" in w.values
+                           for w in self.root.walk())
+        self.show("Hogar")
+        selector = next(w for w in self.body.walk() if isinstance(w, Spinner) and "Claro" in w.values)
+        body = self.body
+        for mode in ("Oscuro", "Claro"):
+            selector.text = mode
+            assert theme.preference == mode
+            assert tuple(Window.clearcolor) == theme.color("bg")
+            assert self.body is body  # No screen reconstruction on theme change.
+            restored = ThemeManager()
+            restored.load(theme.path)
+            assert restored.preference == mode
+        self.show("Inicio")
+        assert not any(isinstance(w, Spinner) and "Claro" in w.values for w in self.root.walk())
+
     def check_local_mode(self):
         with TemporaryDirectory() as temp:
             path = Path(temp) / "local.sqlite3"
@@ -166,6 +187,8 @@ class VerificationApp(NexoFinanzas):
                 for page in ("Inicio", "Personal", "Presupuestos", "Hogar", "Historial"):
                     self.show(page)
                     assert self.manager.current == page
+                self.check_budget_screen()
+                self.check_custom_categories()
                 before = path.read_bytes()
                 self.leave_mode()
                 self.enter_mode(False)
@@ -183,10 +206,113 @@ class VerificationApp(NexoFinanzas):
                 assert self.store.visible() == []
                 self.leave_mode()
 
+    def check_custom_categories(self):
+        self.category_kind, self.category_scope = "Egreso", "Personal"
+        self.show("Categorías")
+
+        def click_filter(text):
+            next(w for w in self.body.walk() if isinstance(w, Button) and w.text == text).dispatch("on_release")
+
+        assert not any(getattr(w, "text", "") == "Consultar tipo y ámbito" for w in self.body.walk())
+        click_filter("Ingresos")
+        assert self.category_kind == "Ingreso"
+        assert any(getattr(w, "text", "") == "Sueldo" for w in self.body.walk())
+        assert not any(getattr(w, "text", "") == "Alimentación" for w in self.body.walk())
+        click_filter("Familiar")
+        assert self.category_scope == "Familiar"
+        click_filter("Egresos")
+        assert self.category_kind == "Egreso"
+        assert any(getattr(w, "text", "") == "Categorías de egreso — Familiar" for w in self.body.walk())
+        click_filter("Personal")
+        assert self.category_scope == "Personal"
+        entry = next(w for w in self.body.walk() if isinstance(w, TextInput) and w.hint_text == "Ej. Mascotas")
+        entry.text = "Mascotas UI"
+        next(w for w in self.body.walk() if isinstance(w, Button) and w.text == "Agregar categoría").dispatch("on_release")
+        assert any("Categoría creada" in getattr(w, "text", "") for w in self.body.walk())
+        click_filter("Familiar")
+        assert not any(getattr(w, "text", "") == "Mascotas UI" for w in self.body.walk())
+        click_filter("Personal")
+        card = next(w for w in self.body.children if isinstance(w, Card) and any(getattr(c, "text", "") == "Mascotas UI" for c in w.children))
+        next(w for w in card.walk() if isinstance(w, Button) and w.text == "Editar nombre").dispatch("on_release")
+        popup = next(w for w in Window.children if isinstance(w, Popup) and w.title == "Editar categoría")
+        next(w for w in popup.content.children if isinstance(w, TextInput)).text = "Animales UI"
+        next(w for w in popup.content.children if isinstance(w, Button) and w.text == "Guardar nombre").dispatch("on_release")
+        self.show("Registrar")
+        fields = self.form_inputs
+        assert "Animales UI" in fields["category"].values
+        fields["kind"].text = "Ingreso"
+        assert "Animales UI" not in fields["category"].values
+        fields["kind"].text = "Egreso"
+        fields["scope"].text = "Familiar"
+        assert "Animales UI" not in fields["category"].values
+        fields["scope"].text = "Personal"
+        fields["category"].text = "Animales UI"
+        fields["amount"].text = "1500"
+        fields["description"].text = "Categoría UI"
+        next(w for w in self.body.children if isinstance(w, Button) and w.text == "Guardar movimiento").dispatch("on_release")
+        movement_id = self.store.visible()[0]["id"]
+        self.show("Categorías")
+        card = next(w for w in self.body.children if isinstance(w, Card) and any(getattr(c, "text", "") == "Animales UI" for c in w.children))
+        next(w for w in card.walk() if isinstance(w, Button) and w.text == "Desactivar").dispatch("on_release")
+        popup = next(w for w in Window.children if isinstance(w, Popup) and w.title == "Desactivar categoría")
+        next(w for w in popup.content.children if isinstance(w, Button) and w.text == "Confirmar desactivación").dispatch("on_release")
+        self.show("Registrar")
+        assert "Animales UI" not in self.form_inputs["category"].values
+        self.edit_movement(movement_id)
+        assert self.form_inputs["category"].text == "Animales UI"
+        assert "Animales UI" in self.form_inputs["category"].values
+        self.form_inputs["amount"].text = "2000"
+        next(w for w in self.body.children if isinstance(w, Button) and w.text == "Guardar cambios").dispatch("on_release")
+        assert self.store.get(movement_id)["amount"] == 2000
+        self.show("Categorías")
+        card = next(w for w in self.body.children if isinstance(w, Card) and any(getattr(c, "text", "") == "Animales UI" for c in w.children))
+        next(w for w in card.walk() if isinstance(w, Button) and w.text == "Activar").dispatch("on_release")
+        popup = next(w for w in Window.children if isinstance(w, Popup) and w.title == "Activar categoría")
+        next(w for w in popup.content.children if isinstance(w, Button) and w.text == "Confirmar activación").dispatch("on_release")
+        assert "Animales UI" in self.store.category_names("Gasto", "Personal")
+        self.store.delete(movement_id)
+
+    def check_budget_screen(self):
+        self.budget_month, self.budget_scope = "2026-10", "Personal"
+        self.show("Presupuestos")
+
+        def click(text):
+            next(w for w in self.body.walk() if isinstance(w, Button) and w.text == text).dispatch("on_release")
+
+        amount = next(w for w in self.body.walk() if isinstance(w, TextInput) and w.hint_text == "Monto máximo CLP sin separadores")
+        amount.text = "100000"
+        click("Crear presupuesto")
+        assert self.store.list_budgets("2026-10", "Personal") == {"Alimentación": 100000}
+        amount = next(w for w in self.body.walk() if isinstance(w, TextInput) and w.hint_text == "Monto máximo CLP sin separadores")
+        amount.text = "200000"
+        click("Crear presupuesto")
+        assert self.store.list_budgets("2026-10", "Personal") == {"Alimentación": 100000}
+        expense_id = self.store.add("Gasto", "Personal", 80000, "2026-10-10", "Alimentación", "Prueba presupuesto")
+        self.show("Presupuestos")
+        assert any("80%" in getattr(w, "text", "") for w in self.body.walk())
+        click("Editar límite")
+        popup = next(w for w in Window.children if isinstance(w, Popup) and w.title == "Editar presupuesto")
+        next(w for w in popup.content.children if isinstance(w, TextInput)).text = "50000"
+        next(w for w in popup.content.children if isinstance(w, Button) and w.text == "Guardar límite").dispatch("on_release")
+        assert any("Presupuesto superado" in getattr(w, "text", "") for w in self.body.walk())
+        click("Eliminar")
+        popup = next(w for w in Window.children if isinstance(w, Popup) and w.title == "Eliminar presupuesto")
+        next(w for w in popup.content.children if isinstance(w, Button) and w.text == "Cancelar").dispatch("on_release")
+        assert self.store.list_budgets("2026-10", "Personal") == {"Alimentación": 50000}
+        click("Eliminar")
+        popup = next(w for w in Window.children if isinstance(w, Popup) and w.title == "Eliminar presupuesto")
+        next(w for w in popup.content.children if isinstance(w, Button) and w.text == "Eliminar presupuesto").dispatch("on_release")
+        assert self.store.list_budgets("2026-10", "Personal") == {}
+        assert self.store.get(expense_id)["amount"] == 80000
+        self.store.delete(expense_id)
+
+
 
 if __name__ == "__main__":
     verify_store()
-    app = VerificationApp()
-    app.run()
-    if app.failure:
-        raise app.failure
+    with TemporaryDirectory() as appearance_directory:
+        app = VerificationApp()
+        app._user_data_dir = appearance_directory
+        app.run()
+        if app.failure:
+            raise app.failure
