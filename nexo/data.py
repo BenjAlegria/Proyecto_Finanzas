@@ -18,6 +18,19 @@ def clp(amount):
     return ("-$" if amount < 0 else "$") + f"{abs(amount):,}".replace(",", ".")
 
 
+def validate_movement(kind, scope, amount, day, category, description):
+    day = date.fromisoformat(day).isoformat()
+    if kind not in CATEGORIES_BY_KIND or scope not in ("Personal", "Familiar"):
+        raise ValueError("Selecciona tipo y ámbito válidos.")
+    if type(amount) is not int or not 0 < amount <= 9223372036854775807:
+        raise ValueError("El monto debe ser un entero positivo dentro del rango permitido.")
+    if category not in CATEGORIES_BY_KIND[kind]:
+        raise ValueError("Selecciona una categoría válida para el tipo de movimiento.")
+    if not description.strip():
+        raise ValueError("Escribe una descripción.")
+    return day
+
+
 class DemoStore:
     user = "Camila"
 
@@ -38,15 +51,7 @@ class DemoStore:
             self.add(kind, scope, amount, date.today().isoformat(), category, description, author)
 
     def add(self, kind, scope, amount, day, category, description, author=None):
-        day = date.fromisoformat(day).isoformat()
-        if kind not in ("Ingreso", "Gasto") or scope not in ("Personal", "Familiar"):
-            raise ValueError("Selecciona tipo y ámbito válidos.")
-        if not isinstance(amount, int) or amount <= 0:
-            raise ValueError("El monto debe ser un entero mayor que cero.")
-        if category not in CATEGORIES_BY_KIND[kind]:
-            raise ValueError("Selecciona una categoría válida para el tipo de movimiento.")
-        if not description.strip():
-            raise ValueError("Escribe una descripción.")
+        day = validate_movement(kind, scope, amount, day, category, description)
         self.movements.append(dict(kind=kind, scope=scope, amount=amount, date=day,
                                     category=category, description=description.strip(),
                                     author=author or self.user,
@@ -68,3 +73,13 @@ class DemoStore:
         income = sum(m["amount"] for m in rows if m["kind"] == "Ingreso")
         expense = sum(m["amount"] for m in rows if m["kind"] == "Gasto")
         return income, expense, income - expense
+
+    def set_home(self, value):
+        if not value.strip():
+            raise ValueError("Escribe un nombre para el hogar.")
+        self.home = value.strip()
+
+    def set_budget(self, category, amount):
+        if category not in EXPENSE_CATEGORIES or type(amount) is not int or not 0 < amount <= 9223372036854775807:
+            raise ValueError("Selecciona categoría y límite entero positivo válido.")
+        self.budgets[category] = amount

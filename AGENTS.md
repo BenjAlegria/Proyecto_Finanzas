@@ -4,10 +4,14 @@ Lee `docs/PRODUCTO.md` antes de modificar código. Trabaja en pasos pequeños, e
 
 ## Tecnología inicial
 - App Android-first y escritorio: Python + Kivy (KivyMD opcional, verificar compatibilidad).
-- Backend multiusuario: Python + FastAPI, API HTTPS.
-- Base de datos servidor: PostgreSQL o MySQL (decisión pendiente). SQLite solo para prototipos locales sin datos reales.
+- Etapa local autorizada: sqlite3 en `App.user_data_dir`, un único usuario sin autenticación, separado de la demo en memoria. No agregar datos personales al repositorio.
+- Backend multiusuario futuro: Python + FastAPI, API HTTPS.
+- Base de datos servidor: PostgreSQL o MySQL (decisión pendiente). SQLite se usa únicamente para el modo personal local, sin afirmar seguridad multiusuario.
 - No conectar directamente la app móvil a la base de datos; usar API autenticada.
 - Para APK Android: Buildozer en Linux/WSL2.
 
 ## Primera tarea
 Crear solo un prototipo ejecutable de la app Kivy con navegación y datos ficticios, sin credenciales ni backend. Pantallas: acceso, panel familiar, mis finanzas privadas, movimientos, nuevo movimiento, presupuestos y ajustes. Mostrar claramente que es demo. Entregar instrucciones para Windows.
+
+## Etapa actual
+Conservar la demo y el diseño. Ofrecer también modo personal local persistente, con edición y eliminación de movimientos, consultas parametrizadas y pruebas en bases temporales. No implementar autenticación ficticia ni compartir datos locales entre integrantes. La primera tarea anterior queda como antecedente del prototipo.

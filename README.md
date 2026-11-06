@@ -1,66 +1,99 @@
-# Nexo Finanzas · Prototipo Kivy
+# Nexo Finanzas · Python + Kivy
 
-Python 3.10.11 y Kivy 2.3.1. No se agregaron dependencias. Datos ficticios
-en memoria: al cerrar el proceso se descartan los cambios.
+Python 3.10.11 y Kivy 2.3.1. SQLite utiliza `sqlite3`, incluido con Python;
+no se instalaron dependencias adicionales. Se conservan el diseño oscuro,
+las tarjetas, los filtros, la navegación y el formato CLP sin decimales.
 
-## Ejecutar en Windows (PowerShell)
+## Ejecutar desde VS Code en Windows
 
-Desde la carpeta `nexo-finanzas-inicio`:
+Abre la terminal PowerShell y entra en `nexo-finanzas-inicio`:
 
 ```powershell
+cd .\nexo-finanzas-inicio
 .\.venv\Scripts\python.exe main.py
 ```
 
-Desde la carpeta superior, primero ejecutar `cd .\nexo-finanzas-inicio`.
-No es necesario activar el entorno virtual.
+Si la terminal ya está en esa carpeta, omite el `cd`.
+También puedes seleccionar `.venv\Scripts\python.exe` mediante
+**Python: Select Interpreter** y ejecutar `main.py` con Run Python File.
+No es necesario activar el entorno.
 
-## Recorrido
+## Modos separados
 
-Comenzar → Iniciar sesión demo → Inicio. La barra inferior abre Inicio,
-Personal, Nuevo movimiento, Historial y Hogar. Presupuestos está disponible
-desde Inicio y Hogar. El contenido se desplaza verticalmente en ventanas pequeñas.
+En **Comenzar** puedes elegir:
 
-- Nuevo movimiento valida monto entero positivo, fecha ISO, categoría y descripción.
-  Las categorías cambian inmediatamente entre Ingreso y Egreso; al cambiar de tipo
-  se solicita seleccionar una categoría válida otra vez. Internamente se conserva
-  `Gasto` para mantener compatibles los cálculos existentes.
-  El ámbito inicial es Personal para evitar compartir por accidente.
-- Inicio suma exclusivamente movimientos familiares del mes actual.
-- Personal muestra solo movimientos de Camila. Historial filtra mes, ámbito y categoría.
-- Historial y movimientos recientes se ordenan por fecha del movimiento, hora de
-  registro UTC e identificador secuencial estable durante la sesión, en orden
-  descendente. Este criterio se aplica también a los datos en memoria. Un registro
-  con fecha anterior se ubica según esa fecha, aunque se haya registrado ahora.
-- Presupuestos compara egresos familiares con límites editables del mes actual.
-- Hogar permite cambiar su nombre durante la sesión y consultar integrantes ficticios.
-- Cerrar sesión vuelve al acceso y conserva la demo en memoria hasta cerrar la app.
+- **Abrir modo personal local**: la primera vez empieza sin movimientos ni
+  presupuestos. Las siguientes veces recupera lo guardado en SQLite. El autor
+  es Usuario local, sin cuenta ni autenticación. Personal y Familiar son ámbitos
+  organizativos; sus saldos se calculan por separado. Inicio resume Familiar y
+  Mis finanzas resume Personal. No hay sincronización ni permisos multiusuario.
+- **Iniciar sesión demo**: datos ficticios de Camila y Diego, únicamente en memoria.
+  Al salir de la demo se reinician. Nunca se copian a SQLite.
 
-## Verificar
+La cabecera identifica el modo. Desde Hogar puedes cambiar de modo. Cerrar la
+app o cambiar de modo no elimina los datos locales ya guardados.
+
+## Probar la persistencia manualmente
+
+1. Abre el modo personal local. En `+ Nuevo`, registra un Ingreso / Sueldo y un
+   Egreso / Alimentación, con fecha actual y monto entero sin separadores.
+2. Revisa Historial y Mis finanzas (o Inicio si elegiste ámbito Familiar).
+3. Cierra completamente la ventana. Ejecuta de nuevo `main.py` y elige el modo
+   personal local. Comprueba que aparecen los mismos movimientos y saldos.
+4. Usa **Editar** en una tarjeta, cambia el monto y guarda. Se conserva el ID y
+   la hora de creación; los saldos se recalculan al abrir cada pantalla.
+5. Usa **Eliminar**, confirma y vuelve a abrir la app: el movimiento sigue eliminado.
+   Cancelar la confirmación conserva el movimiento.
+6. Cambia a demo y registra algo. Regresa al modo local: ese registro no aparecerá.
+7. Configura un presupuesto en Presupuestos o cambia el nombre en Hogar: ambos
+   también se conservan tras reiniciar.
+
+Los filtros por mes/categoría/ámbito siguen disponibles. Después de guardar o
+editar se muestra el historial del mes correspondiente al movimiento. El orden
+es fecha del movimiento, hora de creación UTC e ID, descendentes. Editar conserva
+la hora de creación y el ID; cambiar la fecha puede cambiar su posición.
+Las categorías se actualizan inmediatamente entre Ingreso y Egreso y se validan
+al guardar. El valor interno `Gasto` se conserva por compatibilidad.
+
+## Ubicación de la base
+
+La app usa `Path(App.user_data_dir) / "nexo.sqlite3"`. La ruta completa se muestra
+en **Hogar y ajustes** dentro del modo local. Nunca se guarda en el código fuente.
+En Windows, Kivy normalmente usa `%APPDATA%\nexofinanzas\nexo.sqlite3`.
+Copia ese archivo con la app cerrada si deseas respaldar tus datos locales.
+
+SQLite no está cifrado. Quien tenga acceso al archivo puede leerlo. Esta etapa
+es de un solo usuario, sin seguridad entre integrantes; la autenticación y los
+permisos reales pertenecen al futuro backend. No subas tu base a GitHub.
+Los archivos de SQLite y sus auxiliares están excluidos por `.gitignore`.
+Los errores de lectura/escritura se muestran en pantalla para poder reintentar;
+no se reemplaza silenciosamente una base inaccesible por una vacía.
+
+## Pruebas automatizadas
+
+Desde `nexo-finanzas-inicio`:
 
 ```powershell
+.\.venv\Scripts\python.exe -m unittest test_storage -v
 .\.venv\Scripts\python.exe verify_demo.py
 ```
 
-Abre una ventana brevemente, recorre las pantallas y comprueba formato CLP,
-validación y separación de datos personales/familiares. También registra Ingreso / Sueldo
-y Egreso / Alimentación desde el formulario, cambia los tipos, rechaza categorías
-incompatibles y comprueba el orden (incluidos empates de hora) y los resúmenes.
-Sale con error si falla.
+Las pruebas SQLite usan bases temporales: ingresos, egresos, reapertura, edición,
+eliminación, orden con empates, separación demo/local, saldos, validaciones y
+fallos de almacenamiento. La verificación gráfica abre una ventana brevemente,
+recorre la demo y el modo local temporal, guarda, edita, elimina y cambia de modo.
+No toca tu base personal. Ambos comandos terminan con error si algo falla.
 
-## Archivos
+## Módulos
 
-- `main.py`: entrada y clase `NexoFinanzas` importada para mantener su nombre.
-- `nexo/app.py`: pantallas, navegación y acciones.
-- `nexo/widgets.py`: componentes visuales y paleta oscura.
-- `nexo/data.py`: datos demo, validaciones, filtros y sumas.
+- `main.py`: punto de entrada.
+- `nexo/app.py`: pantallas, elección de modo, edición, confirmación de borrado y errores.
+- `nexo/widgets.py`: componentes visuales y colores, conservados.
+- `nexo/data.py`: demo, categorías, validaciones compartidas y cálculos.
+- `nexo/storage.py`: tablas automáticas, consultas parametrizadas y transacciones SQLite.
+- `test_storage.py`: pruebas aisladas de persistencia.
+- `verify_demo.py`: comprobaciones gráficas y de regresión.
 
-El acceso es simulado; no introducir credenciales reales. No hay servidor,
-base de datos, invitaciones reales ni garantía de seguridad multiusuario.
-La autorización real debe comprobarse en el servidor, como define PRODUCTO.md.
-Los permisos de edición/borrado de movimientos compartidos siguen pendientes
-de definición y no se simulan aquí.
-
-La interfaz usa unidades dp, controles táctiles y contenido adaptable para
-teléfonos. Esta entrega se verifica en escritorio Windows; no incluye paquetes
-Android/iOS ni pruebas en dispositivos. Android requiere posteriormente
-Buildozer en Linux/WSL2; iOS requiere una cadena de compilación en macOS.
+Android/iOS conservan la interfaz adaptable; esta entrega se verifica en Windows.
+No incluye paquetes ni pruebas en dispositivos. Android requiere Buildozer en
+Linux/WSL2 y iOS una cadena de compilación en macOS.

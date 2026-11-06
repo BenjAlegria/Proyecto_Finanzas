@@ -3,6 +3,14 @@
 ## Objetivo
 Aplicación móvil para que una familia controle gastos e ingresos mensuales y administre mejor el presupuesto, con movimientos personales privados y movimientos familiares compartidos.
 
+## Etapa local actual
+
+- Dos modos separados: demostración ficticia en memoria y personal local en SQLite.
+- El modo local empieza sin movimientos ni presupuestos y conserva los cambios en el directorio de datos de Kivy; permite registrar, editar y eliminar movimientos.
+- Un único usuario local, sin cuenta ni autenticación. Los ámbitos Personal y Familiar son organizativos y sus saldos se calculan por separado.
+- La base local no está cifrada. No hay permisos entre integrantes ni sincronización; las reglas multiusuario siguientes son objetivos del futuro backend.
+- Los registros y las bases personales nunca se incluyen en el repositorio. Las pruebas usan datos ficticios en directorios temporales.
+
 ## Usuarios y privacidad
 - Cada persona tiene su propia cuenta.
 - Una persona puede pertenecer a un hogar familiar.

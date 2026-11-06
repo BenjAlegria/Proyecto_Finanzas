@@ -3,10 +3,14 @@ import os
 os.environ["KIVY_NO_FILELOG"] = "1"
 from datetime import date, datetime, timezone
 from unittest.mock import patch
+from tempfile import TemporaryDirectory
+from pathlib import Path
 from kivy.clock import Clock
 from kivy.uix.button import Button
 from kivy.uix.textinput import TextInput
 from kivy.uix.spinner import Spinner
+from kivy.core.window import Window
+from kivy.uix.popup import Popup
 from nexo.app import NexoFinanzas
 from nexo.widgets import Card
 from nexo.data import DemoStore, clp, INCOME_CATEGORIES, EXPENSE_CATEGORIES, movement_order
@@ -69,7 +73,8 @@ class VerificationApp(NexoFinanzas):
         try:
             page = next(self.pages, None)
             if page is None:
-                print("OK: siete pantallas, navegación y validaciones gráficas.")
+                self.check_local_mode()
+                print("OK: pantallas demo/local, guardado, edición, borrado y cambio de modo.")
                 self.stop()
                 return
             self.show(page)
@@ -130,6 +135,53 @@ class VerificationApp(NexoFinanzas):
         assert self.store.visible("Familiar", self.month)[0]["description"] == "Prueba Egreso"
         recent_cards = [w for w in reversed(self.body.children) if isinstance(w, Card)]
         assert recent_cards[1].children[-1].text.startswith("Prueba Egreso")
+
+    def check_local_mode(self):
+        with TemporaryDirectory() as temp:
+            path = Path(temp) / "local.sqlite3"
+            with patch.object(self, "database_path", return_value=path):
+                self.enter_mode(True)
+                assert self.local_mode
+                assert self.store.visible() == []
+                self.show("Registrar")
+                inputs = self.form_inputs
+                inputs["kind"].text = "Ingreso"
+                inputs["category"].text = "Sueldo"
+                inputs["amount"].text = "70000"
+                inputs["description"].text = "Ingreso local de prueba"
+                save = next(w for w in self.body.children if isinstance(w, Button) and w.text == "Guardar movimiento")
+                save.dispatch("on_release")
+                save.dispatch("on_release")  # A repeated release must not duplicate the write.
+                assert len(self.store.visible()) == 1
+                movement_id = self.store.visible()[0]["id"]
+                self.leave_mode()
+                self.enter_mode(True)
+                assert self.store.get(movement_id)["amount"] == 70000
+                self.edit_movement(movement_id)
+                assert self.form_inputs["amount"].text == "70000"
+                self.form_inputs["amount"].text = "80000"
+                save = next(w for w in self.body.children if isinstance(w, Button) and w.text == "Guardar cambios")
+                save.dispatch("on_release")
+                assert self.store.totals("Personal", self.month) == (80000, 0, 80000)
+                for page in ("Inicio", "Personal", "Presupuestos", "Hogar", "Historial"):
+                    self.show(page)
+                    assert self.manager.current == page
+                before = path.read_bytes()
+                self.leave_mode()
+                self.enter_mode(False)
+                self.store.add("Ingreso", "Personal", 123, date.today().isoformat(), "Ventas", "Solo demo")
+                assert path.read_bytes() == before
+                self.enter_mode(True)
+                self.confirm_delete(movement_id)
+                popup = next(w for w in Window.children if isinstance(w, Popup))
+                remove = next(w for w in popup.content.children if isinstance(w, Button) and w.text == "Eliminar definitivamente")
+                remove.dispatch("on_release")
+                assert self.store.visible() == []
+                assert self.store.totals("Personal", self.month) == (0, 0, 0)
+                self.leave_mode()
+                self.enter_mode(True)
+                assert self.store.visible() == []
+                self.leave_mode()
 
 
 if __name__ == "__main__":
